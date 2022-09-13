@@ -9,8 +9,7 @@ from django.urls import path
 
 from . import views
 from .constants import (CHANGE_DONE, CHANGE_FORM, LOGGED_OUT, LOGIN,
-                              RESET_COMPLETE, RESET_CONFIRM, RESET_DONE,
-                              RESET_FORM)
+                        RESET_COMPLETE, RESET_CONFIRM, RESET_DONE, RESET_FORM)
 
 app_name = "users"
 
