@@ -361,6 +361,9 @@ class PaginatorsTest(TestCase):
             ("profile", (cls.author,)),
         )
 
+    def setUp(self):
+        cache.clear()
+
     def _test_pagination(self, url_params, expected_count):
         """Макет проверки работы пагинатора."""
         for reverse_name, args in PaginatorsTest.url_names:
