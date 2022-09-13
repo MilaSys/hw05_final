@@ -343,6 +343,7 @@ class PaginatorsTest(TestCase):
         )
         cls.group = Group.objects.create(
             title="Тест",
+            slug="slug",
             description="Тестовое описание"
         )
         posts = (
@@ -355,7 +356,7 @@ class PaginatorsTest(TestCase):
         Post.objects.bulk_create(posts)
 
         cls.url_names = (
-            ("index", None),
+            ("index", None,),
             ("group_list", (cls.group.slug,)),
             ("profile", (cls.author,)),
         )
