@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ author.title }}{{ author.name }}{% endblock %}
+{% block content %}
+<h1>{{ author.main_title }}</h1>
+<p>
+  {{ author.text }}
+</p>
+<p>{{ author.name }}</p>
+<p>{{ github|safe }}</p>
+{% endblock %}
