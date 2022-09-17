@@ -9,7 +9,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from ..constants import ALL_COUNT_OF_POSTS, FIRST_PAGE_POSTS, NEXT_PAGE_POSTS
-from ..models import HEADER_LENGTH, Follow, Group, Post, User
+from ..models import HEADER_LENGTH, Comment, Follow, Group, Post, User
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
@@ -68,7 +68,12 @@ class PostsPagesTests(TestCase):
             ) for i in range(ALL_COUNT_OF_POSTS)
         )
         cls.post = Post.objects.latest("id")
-        cache.clear()
+        cls.another_post = Post.objects.earliest("id")
+        cls.comment = Comment.objects.create(
+            post=cls.post,
+            author=cls.author,
+            text="Тестовый комментарий",
+        )
 
         cls.urls_auth_users = (
             (
@@ -221,16 +226,52 @@ class PostsPagesTests(TestCase):
             response.context["author"],
             PostsPagesTests.author
         )
+        self.assertEqual(
+            response.context["following"],
+            Follow.objects.filter(
+                user=PostsPagesTests.author, author=PostsPagesTests.author
+            ).exists()
+        )
         self._assert_post_has_attrs(response.context["page_obj"][0])
 
     def test_post_detail_show_correct_context(self):
-        """Проверяем контекст шаблона post_detai."""
+        """Проверяем контекст шаблона post_detail."""
+        form_fields = {
+            "text": forms.fields.CharField,
+        }
         response = PostsPagesTests.auth_client.get(
             reverse(
                 "posts:post_detail", args=[PostsPagesTests.post.pk]
             )
         )
+        comment_object = response.context["comments"].get(
+            pk=PostsPagesTests.comment.pk
+        )
         self._assert_post_has_attrs(response.context["post"])
+        self.assertEqual(
+            comment_object,
+            PostsPagesTests.comment
+        )
+        self.assertEqual(
+            comment_object.id,
+            PostsPagesTests.comment.pk
+        )
+        self.assertEqual(
+            comment_object.post,
+            PostsPagesTests.comment.post
+        )
+        self.assertEqual(
+            comment_object.author,
+            PostsPagesTests.comment.author
+        )
+        self.assertEqual(
+            comment_object.text,
+            PostsPagesTests.comment.text
+        )
+        for value, expected in form_fields.items():
+            with self.subTest(value=value, expected=expected):
+                form_field = response.context.get("form").fields.get(value)
+                self.assertIsInstance(form_field, expected)
 
     def assert_post_response(self, response):
         """Макет проверки шаблонов post_create/post_edit."""
@@ -263,31 +304,41 @@ class PostsPagesTests(TestCase):
 
     def test_index_cache(self):
         """Проверяем кеширование страницы index."""
+        cache_data = {
+            "text": "Проверка кэша",
+        }
         response = PostsPagesTests.auth_client.get(reverse("posts:index"))
         PostsPagesTests.auth_client.post(
             reverse("posts:post_create"),
-            data={"text": "Проверка кэша", },
+            data=cache_data,
             follow=True
         )
         response = PostsPagesTests.auth_client.get(reverse("posts:index"))
-        self.assertNotContains(response, "Проверка кэша")
+        self.assertNotContains(response, cache_data["text"])
         cache.clear()
         response = PostsPagesTests.auth_client.get(reverse("posts:index"))
-        self.assertContains(response, "Проверка кэша")
+        self.assertContains(response, cache_data["text"])
 
     def test_follow(self):
         """Проверяем возможность подписки на автора."""
-        follower_list = Follow.objects.values_list("id", flat=True)
-        count_follower_before = len(follower_list)
+        self.assertFalse(
+            Follow.objects.filter(
+                user=PostsPagesTests.follower, author=PostsPagesTests.author
+            ).exists()
+        )
+        count_follower_before = Follow.objects.count()
         self.auth_follower_client.get(
             reverse(
                 "posts:profile_follow",
                 args=[PostsPagesTests.author]
             )
         )
-        create_follower = Follow.objects.exclude(pk__in=list(follower_list))
-        self.assertEqual(create_follower.count(), 1)
         self.assertEqual(Follow.objects.count(), count_follower_before + 1)
+        self.assertTrue(
+            Follow.objects.filter(
+                user=PostsPagesTests.follower, author=PostsPagesTests.author
+            ).exists()
+        )
 
     def test_unfollow(self):
         """Проверяем возможность отписки от автора."""
@@ -297,8 +348,12 @@ class PostsPagesTests(TestCase):
                 args=[PostsPagesTests.author]
             )
         )
-        follower_list = Follow.objects.values_list("id", flat=True)
-        count_follower_before = len(follower_list)
+        self.assertTrue(
+            Follow.objects.filter(
+                user=PostsPagesTests.follower, author=PostsPagesTests.author
+            ).exists()
+        )
+        count_follower_before = Follow.objects.count()
         self.auth_follower_client.get(
             reverse(
                 "posts:profile_unfollow",
@@ -306,11 +361,19 @@ class PostsPagesTests(TestCase):
             )
         )
         self.assertEqual(Follow.objects.count(), count_follower_before - 1)
+        self.assertFalse(
+            Follow.objects.filter(
+                user=PostsPagesTests.follower, author=PostsPagesTests.author
+            ).exists()
+        )
 
-    def test_follow_page_show_follower_no_not_other_follower(self):
+    def test_follow_page_show_follower(self):
         """Новая запись пользователя появляется в ленте тех,
-        кто на него подписан и не появляется в ленте тех, кто не подписан.
+        кто на него подписан.
         """
+        comment_data = {
+            "text": "Тестовый текст",
+        }
         self.auth_follower_client.get(
             reverse(
                 "posts:profile_follow",
@@ -318,19 +381,56 @@ class PostsPagesTests(TestCase):
             )
         )
         self.assertEqual(Follow.objects.count(), 1)
-        self.auth_client.post(
+        PostsPagesTests.auth_client.post(
             reverse(
                 "posts:post_create"
             ),
-            data={"text": "Тестовый текст"},
+            data=comment_data,
             follow=True
         )
-        response = self.auth_follower_client.get(reverse("posts:follow_index"))
-        self.assertContains(response, "Тестовый текст")
-        response = self.auth_another_client.get(
+        response = PostsPagesTests.auth_follower_client.get(
             reverse("posts:follow_index")
         )
-        self.assertNotContains(response, "Тестовый текст")
+        self.assertContains(response, comment_data["text"])
+
+    def test_follow_page_not_show_not_other_follower(self):
+        """Новая запись пользователя не появляется в ленте тех,
+        кто не подписан на него.
+        """
+        comment_data = {
+            "text": "Тестовый текст",
+        }
+        self.auth_follower_client.get(
+            reverse(
+                "posts:profile_follow",
+                args=[PostsPagesTests.author]
+            )
+        )
+        another_response = PostsPagesTests.auth_another_client.get(
+            reverse("posts:follow_index")
+        )
+        self.assertNotContains(another_response, comment_data["text"])
+
+    def test_comment_not_show_another_post(self):
+        """Комментарий отображается только с постом который комментировался.
+        """
+        PostsPagesTests.auth_client.post(
+            reverse("posts:add_comment", args=[PostsPagesTests.post.pk]),
+            data={"text": "Тестовый комментарий"},
+            follow=True
+        )
+        response = PostsPagesTests.auth_client.get(
+            reverse(
+                "posts:post_detail", args=[PostsPagesTests.post.pk]
+            )
+        )
+        another_response = PostsPagesTests.auth_client.get(
+            reverse(
+                "posts:post_detail", args=[PostsPagesTests.another_post.pk]
+            )
+        )
+        self.assertContains(response, "Тестовый комментарий")
+        self.assertNotContains(another_response, "Тестовый комментарий")
 
 
 class PaginatorsTest(TestCase):

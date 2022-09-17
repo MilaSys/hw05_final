@@ -12,6 +12,10 @@ class PubDateModel(models.Model):
         verbose_name="Дата публикации",
         auto_now_add=True
     )
+    text = models.TextField(
+        verbose_name="Текст",
+        help_text="Напишите что-то осмысленное.",
+    )
 
     class Meta:
         abstract = True

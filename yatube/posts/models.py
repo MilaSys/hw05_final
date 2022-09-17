@@ -1,9 +1,9 @@
-from core.models import PubDateModel
 from django.contrib.auth import get_user_model
 from django.db import models
 from pytils.translit import slugify
 
-from .constants import COUNT_OF_LETTERS, HEADER_LENGTH
+from core.models import PubDateModel
+from posts.constants import COUNT_OF_LETTERS, HEADER_LENGTH
 
 User = get_user_model()
 
@@ -62,10 +62,6 @@ class Post(PubDateModel, models.Model):
         image: ImageField - изображение загруженное автором
     """
 
-    text = models.TextField(
-        verbose_name="Текст",
-        help_text="Создайте свой литературный шедевр.",
-    )
     author = models.ForeignKey(
         User,
         verbose_name="Автор",
@@ -118,16 +114,11 @@ class Comment(PubDateModel, models.Model):
         on_delete=models.CASCADE,
         related_name="comments",
     )
-    text = models.TextField(
-        verbose_name="Комментарий",
-        help_text="""Можете оставить здесь своё восхищение,
-        конструктивную критику, благодарность.""",
-    )
 
     class Meta:
         verbose_name = "Комментарий"
         verbose_name_plural = "Комментарии"
-        ordering = ["-pub_date"]
+        ordering = ("-pub_date",)
 
     def __str__(self):
         return self.text[:COUNT_OF_LETTERS]
@@ -154,6 +145,11 @@ class Follow(models.Model):
     )
 
     class Meta:
-        ordering = ["-id"]
         verbose_name = "Подписка"
         verbose_name_plural = "Подписки"
+        ordering = ("-id",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "author"], name="unique_follow"
+            )
+        ]

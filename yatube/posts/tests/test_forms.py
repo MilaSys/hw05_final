@@ -1,8 +1,8 @@
 import shutil
 import tempfile
-from xml.etree.ElementTree import Comment
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -68,6 +68,7 @@ class FormTests(TestCase):
             "image": uploaded,
         }
         cls.expected_form_data = {
+            "author": cls.author.id,
             "text": "Тестовый текст",
             "group": cls.group.id,
             "image": "posts/small.gif",
@@ -77,6 +78,11 @@ class FormTests(TestCase):
             "group": cls.another_group.id,
         }
         cls.add_comment_data = {
+            "text": "Тестовый комментарий",
+        }
+        cls.expected_add_comment_data = {
+            "author": cls.author.id,
+            "post": cls.post.id,
             "text": "Тестовый комментарий",
         }
         cls.form_error = (
@@ -114,6 +120,31 @@ class FormTests(TestCase):
                 ),
             )
         )
+        cls.add_comment_error = (
+            (
+                {
+                    "text": "mm",
+                },
+                (
+                    "form",
+                    "text",
+                    "Напишите что-то более осмысленное.",
+                ),
+            ),
+            (
+                {
+                    "text": "ддддллллллл"
+                },
+                (
+                    "form",
+                    "text",
+                    "Напишите что-то более осмысленное.",
+                ),
+            )
+        )
+
+    def setUp(self):
+        cache.clear()
 
     @classmethod
     def tearDownClass(cls):
@@ -122,23 +153,22 @@ class FormTests(TestCase):
 
     def test_create_post(self):
         """Форма добавления поста работает корректно."""
-        posts = Post.objects.values_list("id", flat=True)
-        count_post_before = len(posts)
+        posts = list(Post.objects.values_list("id", flat=True))
         FormTests.auth_client.post(
             reverse("posts:post_create"),
             data=FormTests.form_data,
             follow=True
         )
-        create_post = Post.objects.exclude(pk__in=list(posts))
+        create_post = Post.objects.exclude(pk__in=posts)
         self.assertEqual(
             create_post.count(), 1
         )
         self.assertEqual(
-            Post.objects.count(), count_post_before + 1
+            Post.objects.count(), len(posts) + 1
         )
         self.assertEqual(
             FormTests.expected_form_data,
-            *create_post.values("text", "group", "image")
+            *create_post.values("author", "text", "group", "image")
         )
 
     def test_adding_correct_data(self):
@@ -175,20 +205,20 @@ class FormTests(TestCase):
 
     def test_add_comment(self):
         """Форма добавления комментария к посту работает корректно."""
-        post_count = Post.objects.count()
+        comments = list(Comment.objects.values_list("id", flat=True))
         FormTests.auth_client.post(
             reverse("posts:add_comment", args=[FormTests.post.pk]),
             data=FormTests.add_comment_data,
             follow=True
         )
-        response = FormTests.auth_client.get(
-            reverse("posts:post_detail", args=[FormTests.post.pk])
-        )
-        comment_post = Comment.objects.filter(post=FormTests.post.pk)
-        self.assertEqual(Post.objects.count(), post_count)
-
+        create_comment = Comment.objects.exclude(pk__in=comments)
         self.assertEqual(
-            FormTests.add_comment_data,
-            *comment_post.values("text")
+            create_comment.count(), 1
         )
-        self.assertContains(response, "Тестовый комментарий")
+        self.assertEqual(
+            Comment.objects.count(), len(comments) + 1
+        )
+        self.assertEqual(
+            FormTests.expected_add_comment_data,
+            *create_comment.values("author", "post", "text")
+        )

@@ -129,6 +129,7 @@ def add_comment(request: HttpRequest, post_id: int) -> HttpResponse:
         comment.author = request.user
         comment.post = post
         comment.save()
+
     return redirect(reverse("posts:post_detail", args=[post_id]))
 
 
@@ -139,6 +140,7 @@ def follow_index(request: HttpRequest) -> HttpResponse:
     context = get_page_context(
         Post.objects.filter(author__following__user=request.user), request
     )
+
     return render(request, template, context)
 
 
@@ -148,17 +150,14 @@ def profile_follow(request: HttpRequest, username: str) -> HttpResponse:
     author = get_object_or_404(User, username=username)
     if request.user != author:
         Follow.objects.get_or_create(user=request.user, author=author)
-    return redirect(
-        reverse("posts:profile", args=[author])
-    )
+
+    return redirect(reverse("posts:profile", args=[author]))
 
 
 @login_required
 def profile_unfollow(request: HttpRequest, username: str) -> HttpResponse:
     """Отписаться от автора."""
     author = get_object_or_404(User, username=username)
-    if request.user != author:
-        Follow.objects.filter(user=request.user, author=author).delete()
-    return redirect(
-        reverse("posts:profile", args=[author])
-    )
+    Follow.objects.filter(user=request.user, author=author).delete()
+
+    return redirect(reverse("posts:profile", args=[author]))

@@ -16,7 +16,7 @@ class PostForm(forms.ModelForm):
 
     class Meta:
         model = Post
-        fields = ("text", "group", "image")
+        fields = ("text", "group", "image",)
 
     def clean_text(self) -> str:
         """Проверка на содержание текста"""
@@ -39,14 +39,3 @@ class CommentForm(forms.ModelForm):
     class Meta:
         model = Comment
         fields = ("text",)
-
-    def clean_text(self) -> str:
-        """Проверка на содержание текста"""
-        text_check = self.cleaned_data["text"]
-        if text_check == "" or text_check.isspace():
-            raise forms.ValidationError("Заполните поле поста текстом.")
-
-        if len(set(text_check)) < 3:
-            raise forms.ValidationError("Напишите что-то более осмысленное.")
-
-        return text_check

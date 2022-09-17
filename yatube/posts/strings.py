@@ -26,7 +26,7 @@ test_models_fields = {
         },
         "text": {
             "verbose_name": "Текст",
-            "help_text": "Создайте свой литературный шедевр.",
+            "help_text": "Напишите что-то осмысленное.",
         },
         "pub_date": {
             "verbose_name": "Дата публикации",
@@ -60,9 +60,8 @@ test_models_fields = {
             "help_text": "",
         },
         "text": {
-            "verbose_name": "Комментарий",
-            "help_text": """Можете оставить здесь своё восхищение,
-        конструктивную критику, благодарность.""",
+            "verbose_name": "Текст",
+            "help_text": "Напишите что-то осмысленное.",
         },
         "pub_date": {
             "verbose_name": "Дата публикации",
